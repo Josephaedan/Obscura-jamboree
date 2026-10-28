@@ -268,10 +268,9 @@ The **Carousell search** GitHub Actions workflow runs every search listed in
 [`carousell-searches.json`](carousell-searches.json) after each merge to
 `main` (edit that file to change what it looks for). Each search accepts
 `query`, `region`, `sort`, `min_price`, `max_price`, and `limit`. Results
-appear as tables on the run's summary page and as a `results/` artifact of
-JSON files. It can also be started manually with a single query. GitHub runners
-use datacenter IPs, so set an optional `CAROUSELL_PROXY` repository secret
-(e.g. `http://user:pass@host:port`) if searches get challenged.
+appear as tables on the run's summary page and as a JSON artifact. Carousell
+blocks GitHub's servers, so the searches run on your own computer through a
+self-hosted runner: see [docs/carousell-runner.md](docs/carousell-runner.md).
 
 ## Rendering
 
