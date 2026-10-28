@@ -1,4 +1,5 @@
 mod batch;
+mod carousell;
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -220,6 +221,44 @@ enum Command {
         quiet: bool,
     },
 
+    /// Search Carousell listings and print them as JSON or a table.
+    Carousell {
+        /// Search terms, e.g. "iphone 15 pro".
+        query: String,
+
+        #[arg(long, value_enum, default_value = "sg")]
+        region: carousell::Region,
+
+        #[arg(long, value_enum, default_value = "best")]
+        sort: carousell::Sort,
+
+        #[arg(long, value_name = "AMOUNT")]
+        min_price: Option<u64>,
+
+        #[arg(long, value_name = "AMOUNT")]
+        max_price: Option<u64>,
+
+        /// Maximum number of listings to print.
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+
+        #[arg(long, value_enum, default_value = "json")]
+        format: carousell::OutputFormat,
+
+        #[arg(long, short = 'o')]
+        output: Option<std::path::PathBuf>,
+
+        #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: u64,
+
+        /// Seconds to wait for client-rendered results after load.
+        #[arg(long, default_value_t = 10)]
+        wait: u64,
+
+        #[arg(long, short)]
+        quiet: bool,
+    },
+
     Mcp {
         /// Recursively load additional font files before the first render.
         #[arg(long = "font-dir", value_name = "DIR")]
@@ -298,6 +337,7 @@ fn is_quiet_command(cmd: &Option<Command>) -> bool {
         Some(Command::Fetch { quiet: true, .. })
             | Some(Command::Scrape { quiet: true, .. })
             | Some(Command::Serve { quiet: true, .. })
+            | Some(Command::Carousell { quiet: true, .. })
     )
 }
 
@@ -644,6 +684,41 @@ async fn run_cli() -> anyhow::Result<()> {
                 stealth,
                 obey_robots,
                 global_user_agent.clone(),
+            )
+            .await?;
+        }
+        Some(Command::Carousell {
+            query,
+            region,
+            sort,
+            min_price,
+            max_price,
+            limit,
+            format,
+            output,
+            timeout,
+            wait,
+            quiet,
+        }) => {
+            carousell::run(
+                carousell::SearchOptions {
+                    query,
+                    region,
+                    sort,
+                    min_price,
+                    max_price,
+                    limit,
+                    format,
+                    output,
+                    timeout_secs: timeout,
+                    wait_secs: wait,
+                    quiet,
+                },
+                global_proxy,
+                stealth,
+                global_user_agent.clone(),
+                global_storage_dir.clone(),
+                obey_robots,
             )
             .await?;
         }
