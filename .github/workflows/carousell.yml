@@ -50,9 +50,37 @@ env:
   CARGO_TERM_COLOR: always
   OPENSSL_NO_VENDOR: "1"
 
+# The searches run on your own computer (a self-hosted runner labelled
+# "carousell"), because Carousell blocks GitHub's datacenter IPs. GitHub's
+# hosted runners only build the obscura binary for your computer's OS.
 jobs:
-  search:
-    runs-on: ubuntu-22.04
+  detect:
+    name: Detect your computer
+    runs-on: [self-hosted, carousell]
+    timeout-minutes: 5
+    outputs:
+      build-os: ${{ steps.pick.outputs.build-os }}
+    steps:
+      - name: Pick a matching build machine
+        id: pick
+        shell: bash
+        run: |
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            Linux-X64)   build_os=ubuntu-22.04 ;;
+            Linux-ARM64) build_os=ubuntu-22.04-arm ;;
+            macOS-ARM64) build_os=macos-14 ;;
+            macOS-X64)   build_os=macos-15-intel ;;
+            *)
+              echo "::error::Unsupported runner $RUNNER_OS-$RUNNER_ARCH. Use a Mac or Linux computer (on Windows, run the runner inside WSL)."
+              exit 1 ;;
+          esac
+          echo "Your computer: $RUNNER_OS-$RUNNER_ARCH, building on $build_os"
+          echo "build-os=$build_os" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build obscura
+    needs: detect
+    runs-on: ${{ needs.detect.outputs.build-os }}
     timeout-minutes: 90
     steps:
       - name: Checkout
@@ -60,11 +88,23 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install system dependencies
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             clang cmake libclang-dev libssl-dev llvm-dev pkg-config
+
+      - name: Configure libclang (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # Same setup as release.yml: one coherent SDK for BoringSSL.
+          XCODE_PATH="$(xcode-select -p)"
+          SDK_PATH="$(xcrun --show-sdk-path)"
+          echo "SDKROOT=$SDK_PATH" >> "$GITHUB_ENV"
+          echo "CXXFLAGS=-isystem $SDK_PATH/usr/include/c++/v1" >> "$GITHUB_ENV"
+          echo "LIBCLANG_PATH=$XCODE_PATH/Toolchains/XcodeDefault.xctoolchain/usr/lib" >> "$GITHUB_ENV"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
@@ -75,6 +115,7 @@ jobs:
           shared-key: obscura-carousell
 
       - name: Repair incomplete V8 cache
+        shell: bash
         run: |
           # rust-cache removes gn_out but can retain V8's build-script metadata.
           if [[ ! -f target/release/gn_out/obj/librusty_v8.a || ! -s target/release/gn_out/obj/librusty_v8.a ]]; then
@@ -85,7 +126,32 @@ jobs:
       - name: Build
         run: cargo build --release -p obscura-cli --bins --features render,stealth
 
+      - name: Upload binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: obscura-${{ github.run_id }}
+          path: target/release/obscura
+          retention-days: 1
+
+  search:
+    name: Search Carousell
+    needs: build
+    runs-on: [self-hosted, carousell]
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Download binary
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: obscura-${{ github.run_id }}
+          path: bin
+
       - name: Search
+        shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
           QUERY: ${{ inputs.query }}
@@ -97,15 +163,17 @@ jobs:
           # Push events have no inputs; stealth defaults to on.
           STEALTH: ${{ inputs.stealth }}
           # Optional repository secret, e.g. http://user:pass@host:port.
-          # GitHub runners use datacenter IPs that Cloudflare often challenges.
           CAROUSELL_PROXY: ${{ secrets.CAROUSELL_PROXY }}
         run: |
           set -euo pipefail
+          # Artifacts drop the executable bit.
+          chmod +x bin/obscura
+          rm -rf results
           # A manual run with a query searches just that; otherwise run the file.
           if [[ "$EVENT_NAME" == "workflow_dispatch" && -n "$QUERY" ]]; then
             export SEARCH_JSON="$(python3 -c 'import json, os; print(json.dumps({k: os.environ[k.upper()] for k in ("query", "region", "sort", "min_price", "max_price", "limit")}))')"
           fi
-          python3 scripts/carousell/run_searches.py --searches carousell-searches.json --out-dir results
+          python3 scripts/carousell/run_searches.py --binary bin/obscura --searches carousell-searches.json --out-dir results
 
       - name: Upload listings
         if: always()
