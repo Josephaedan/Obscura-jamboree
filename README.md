@@ -246,6 +246,24 @@ See [docs/Environment-variables.md](docs/Environment-variables.md) for the
 full allow/deny rules (DNS-resolution-time checks included).
 ```
 
+### Search Carousell
+
+```bash
+# JSON array of listings (id, title, price, original_price, condition, seller, posted, url, image)
+obscura carousell "iphone 15"
+
+# Region, sort, price range, and a quick table view
+obscura carousell "ps5" --region my --sort price-low --min-price 500 --max-price 2000 --format table
+
+# One JSON object per line, written to a file
+obscura carousell "film camera" --region hk --format jsonl -o listings.jsonl
+```
+
+Regions: `sg` (default), `my`, `hk`, `ph`, `tw`. Sorts: `best` (default),
+`recent`, `price-low`, `price-high`. Only the first page of results is read.
+Carousell sits behind Cloudflare, which may challenge datacenter IPs; the
+command exits with an error when it gets a challenge page instead of results.
+
 ## Rendering
 
 Official release archives and the Docker image include the rendering engine.
