@@ -1,0 +1,4 @@
+[
+  { "query": "iphone 15", "region": "sg", "sort": "recent", "limit": 20 },
+  { "query": "ps5", "region": "sg", "sort": "price-low", "min_price": 300, "max_price": 700, "limit": 20 }
+]
