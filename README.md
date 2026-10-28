@@ -264,6 +264,12 @@ Regions: `sg` (default), `my`, `hk`, `ph`, `tw`. Sorts: `best` (default),
 Carousell sits behind Cloudflare, which may challenge datacenter IPs; the
 command exits with an error when it gets a challenge page instead of results.
 
+The same search runs from GitHub Actions: **Actions > Carousell search > Run
+workflow**. Results appear as a table on the run's summary page and as a
+`listings.json` artifact. GitHub runners use datacenter IPs, so set an optional
+`CAROUSELL_PROXY` repository secret (e.g. `http://user:pass@host:port`) if
+searches get challenged.
+
 ## Rendering
 
 Official release archives and the Docker image include the rendering engine.
