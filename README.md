@@ -264,11 +264,14 @@ Regions: `sg` (default), `my`, `hk`, `ph`, `tw`. Sorts: `best` (default),
 Carousell sits behind Cloudflare, which may challenge datacenter IPs; the
 command exits with an error when it gets a challenge page instead of results.
 
-The same search runs from GitHub Actions: **Actions > Carousell search > Run
-workflow**. Results appear as a table on the run's summary page and as a
-`listings.json` artifact. GitHub runners use datacenter IPs, so set an optional
-`CAROUSELL_PROXY` repository secret (e.g. `http://user:pass@host:port`) if
-searches get challenged.
+The **Carousell search** GitHub Actions workflow runs every search listed in
+[`carousell-searches.json`](carousell-searches.json) after each merge to
+`main` (edit that file to change what it looks for). Each search accepts
+`query`, `region`, `sort`, `min_price`, `max_price`, and `limit`. Results
+appear as tables on the run's summary page and as a `results/` artifact of
+JSON files. It can also be started manually with a single query. GitHub runners
+use datacenter IPs, so set an optional `CAROUSELL_PROXY` repository secret
+(e.g. `http://user:pass@host:port`) if searches get challenged.
 
 ## Rendering
 
